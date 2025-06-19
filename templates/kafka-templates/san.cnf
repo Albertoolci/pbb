@@ -1,0 +1,17 @@
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+CN = kafka-broker
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = kafka-kraft
+DNS.2 = kafka-kraft-controller-headless
+DNS.3 = kafka-kraft-controller-0
+DNS.4 = kafka-kraft-controller-1
+DNS.5 = kafka-kraft-controller-2

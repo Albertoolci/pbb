@@ -1,0 +1,105 @@
+# -------------------------------------------------------------------
+# 2) Deployment de tu aplicación (namespace: default)
+# -------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: albertoolci/gateway:v3
+          ports:
+            - containerPort: 8080
+          env:
+            - name: GATEWAY_PORT
+              value: "8080"
+            - name: CLIENT_CERT_PATH
+              value: "/usr/app/certs/client/client.crt.pem"
+            - name: KAFKA_HOST
+              value: "kafka-kraft.default.svc.cluster.local"
+            - name: KAFKA_PORT
+              value: "9092"
+          volumeMounts:
+            - name: certs-client
+              mountPath: /usr/app/certs/client
+              readOnly: true
+      volumes:
+        - name: certs-client
+          secret:
+            secretName: client-cert    # debe contener sólo client.crt.pem
+
+---
+# -------------------------------------------------------------------
+# 3) Service de tu aplicación (namespace: default)
+# -------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: default
+spec:
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# -------------------------------------------------------------------
+# 4) Istio Gateway (namespace: aks-istio-ingress)
+# -------------------------------------------------------------------
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: gateway-istio
+  namespace: aks-istio-ingress
+spec:
+  selector:
+    istio: aks-istio-ingressgateway-external
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: gateway-tls        # TLS secret debe estar en aks-istio-ingress
+      hosts:
+        - "*"
+
+---
+# -------------------------------------------------------------------
+# 5) Istio VirtualService (namespace: aks-istio-ingress)
+# -------------------------------------------------------------------
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: gateway-vs
+  namespace: aks-istio-ingress
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - gateway-istio
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: gateway-service.default.svc.cluster.local
+            port:
+              number: 80

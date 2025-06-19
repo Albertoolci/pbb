@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inserter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inserter
+  template:
+    metadata:
+      labels:
+        app: inserter
+    spec:
+      containers:
+        - name: inserter
+          image: albertoolci/inserter:v3.1
+          env:
+            - name: KAFKA_HOST
+              value: "kafka-kraft"
+            - name: KAFKA_PORT
+              value: "9092"
+            - name: DATABASE_HOST
+              value: "mi-mariadb"
+            - name: DATABASE_PORT
+              value: "3306"
+            - name: DATABASE_NAME
+              value: "test_db"
+            - name: TABLE_NAME
+              value: "votos"
+            - name: CERT_ORIGIN_PATH
+              value : "/app/certs/client/client.crt.pem"
+            - name : KEY_INSERTER_PATH
+              value : "/app/certs/inserter/inserter.key"
+            - name : CERT_INSERTER_PATH
+              value : "/app/certs/inserter/inserter.crt"
+            - name: WEB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-web-secret
+                  key: web-password
+            - name: INSERTER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-inserter-secret
+                  key: inserter-password
+          volumeMounts:
+            - name: certs-client
+              mountPath: /app/certs/client
+              readOnly: true
+            - name: certs-inserter
+              mountPath: /app/certs/inserter
+              readOnly: true
+      volumes:
+        - name: certs-client
+          secret:
+            secretName: client-cert
+        - name: certs-inserter
+          secret:
+            secretName: inserter-key-cert

@@ -1,0 +1,15 @@
+auth:
+  database: test_db
+  username: inserter_user
+
+  existingSecret: mysql-inserter-secret
+  existingSecretPasswordKey: inserter-password
+
+  existingRootSecret: mysql-root-secret
+  existingSecretRootPasswordKey: root-password
+
+primary:
+  service:
+    type: ClusterIP
+  persistence:
+    enabled: false

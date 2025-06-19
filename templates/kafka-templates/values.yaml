@@ -1,0 +1,31 @@
+controller:
+  enabled: true  # Activa Kraft en lugar de Zookeeper
+
+kafka:
+  kraftMode: true
+  replicaCount: 1  # Número de brokers en el clúster
+  controllerOnlyReplicaCount: 1  # Número de nodos solo controladores
+  autoCreateTopicsEnable: true  # Permitir la creación automática de temas
+
+auth:
+  clientProtocol: plaintext        # Clientes externos siguen en plaintext
+  interBrokerProtocol: tls         # Brokers y controllers usan TLS
+  tls:
+    type: pem                      # Formato de los certificados en el Secret
+    existingSecrets:
+      kafkaTlsSecret: kafka-tls-secret  # Nombre del Secret con certs TLS
+
+listeners:
+  client:
+    protocol: PLAINTEXT
+    port: 9092
+  controller:
+    protocol: TLS                 # TLS activado para el controller
+    port: 9093
+
+persistence:
+  enabled: true
+  size: 1Gi
+
+service:
+  type: ClusterIP

@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init-job
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: db-init
+          image: albertoolci/setup_db:v3
+          env:
+            - name: ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-root-secret
+                  key: root-password
+            - name: WEB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-web-secret
+                  key: web-password
+            - name: INSERTER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-inserter-secret
+                  key: inserter-password
+            - name: DATABASE_HOST
+              value: "mi-mariadb"
+            - name: DATABASE_PORT
+              value: "3306"
+            - name: DATABASE_NAME
+              value: "test_db"
+            - name: TABLE_NAME
+              value: "votos"

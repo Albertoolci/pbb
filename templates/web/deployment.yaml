@@ -1,0 +1,123 @@
+# -------------------------------------------------------------------
+# Deployment de la aplicación web
+# -------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+      annotations:
+        proxy.istio.io/config: |-
+          proxyMetadata:
+            ISTIO_META_DNS_CAPTURE: "true"
+        proxy.istio.io/proxyCPU: "100m"
+        proxy.istio.io/proxyMemory: "128Mi"
+        proxy.istio.io/config: |-
+          concurrency: 2
+    spec:
+      containers:
+        - name: web
+          image: albertoolci/web:v1
+          ports:
+            - containerPort: 80
+          env:
+            - name: DATABASE_NAME
+              value: "test_db"
+            - name: DATABASE_HOST
+              value: "mi-mariadb"
+            - name: TABLE_NAME
+              value: "votos"
+            - name: WEB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-web-secret
+                  key: web-password
+          volumeMounts:
+            - name: ssl-certs
+              mountPath: /etc/apache2/ssl
+              readOnly: true
+      volumes:
+        - name: ssl-certs
+          secret:
+            secretName: web-tls-secret
+            items:
+              - key: tls.crt
+                path: web.cert.pem
+              - key: tls.key
+                path: web.key.pem
+
+---
+# -------------------------------------------------------------------
+# Service de la aplicación web (ClusterIP, Istio tomará el control del tráfico)
+# -------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: default
+spec:
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+
+---
+# -------------------------------------------------------------------
+# Istio Gateway (namespace: aks-istio-ingress)
+# -------------------------------------------------------------------
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: gateway-istio
+  namespace: aks-istio-ingress
+spec:
+  selector:
+    istio: aks-istio-ingressgateway-external
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: gateway-tls    # TLS secret en aks-istio-ingress
+      hosts:
+        - "gateway-pbb.westeurope.cloudapp.azure.com"
+
+---
+# -------------------------------------------------------------------
+# Istio VirtualService (namespace: aks-istio-ingress)
+# -------------------------------------------------------------------
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: web-vs
+  namespace: aks-istio-ingress
+spec:
+  hosts:
+    - "gateway-pbb.westeurope.cloudapp.azure.com"
+  gateways:
+    - gateway-istio
+  http:
+    - match:
+        - uri:
+            prefix: /web
+      rewrite:
+        uri: /    # Quita /web cuando llega a la web
+      route:
+        - destination:
+            host: web-service.default.svc.cluster.local
+            port:
+              number: 80
